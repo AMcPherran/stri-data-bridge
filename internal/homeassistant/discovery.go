@@ -30,15 +30,19 @@ var classRules = []struct {
 	{"pressure", SensorMeta{"pressure", "hPa"}},
 	{"rainfall", SensorMeta{"precipitation", "mm"}},
 	{"rain", SensorMeta{"precipitation", "mm"}},
-	{"wind_speed", SensorMeta{"wind_speed", "m/s"}},
+	{"wind_speed", SensorMeta{"wind_speed", "km/h"}},
 	{"wind_direction", SensorMeta{"wind_direction", "°"}},
 	{"solar_radiation", SensorMeta{"irradiance", "W/m²"}},
 	{"dissolved_oxygen", SensorMeta{"", "mg/L"}},
-	{"sea_level", SensorMeta{"", "m"}},
-	{"salinity", SensorMeta{"salinity", "PSU"}},
+	{"sea_level", SensorMeta{"distance", "m"}},
+	{"tide", SensorMeta{"distance", "m"}},
+	{"salinity", SensorMeta{"", "PSU"}},
+	{"specific_conductance", SensorMeta{"", "µS/cm"}},
 	{"conductivity", SensorMeta{"", "µS/cm"}},
 	{"turbidity", SensorMeta{"", "NTU"}},
 	{"chlorophyll", SensorMeta{"", "µg/L"}},
+	{"phycocyanin", SensorMeta{"", "RFU"}},
+	{"battery", SensorMeta{"voltage", "V"}},
 	{"orp", SensorMeta{"voltage", "mV"}},
 	{"ph", SensorMeta{"ph", ""}},
 }
@@ -83,7 +87,7 @@ func BuildDiscovery(sensorName, topicPrefix, unitOverride string) (string, []byt
 	configTopic := topicPrefix + "/sensor/" + uniqueID + "/config"
 
 	cfg := DiscoveryConfig{
-		Name:              "STRI Bocas " + toTitle(sensorName),
+		Name:              toTitle(sensorName),
 		UniqueID:          uniqueID,
 		StateTopic:        stateTopic,
 		ValueTemplate:     "{{ value_json.value }}",

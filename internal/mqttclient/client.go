@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -85,11 +86,71 @@ func (c *Client) PublishReading(r vision.SensorReading) {
 		log.Printf("[mqtt] marshaling state for %s: %v", r.Name, err)
 		return
 	}
-	if token := c.inner.Publish(stateTopic, 0, false, payload); token.Wait() && token.Error() != nil {
+	if token := c.inner.Publish(stateTopic, 0, true, payload); token.Wait() && token.Error() != nil {
 		log.Printf("[mqtt] publishing state for %s: %v", r.Name, token.Error())
 		return
 	}
 	log.Printf("[mqtt] state published: %s = %.4g %s", r.Name, r.Value, r.Unit)
+}
+
+// PruneStaleDiscovery removes HA MQTT discovery entries for sensors that are no
+// longer published by this bridge. It subscribes to the wildcard config topic,
+// waits briefly for all retained messages to arrive, then publishes an empty
+// retained payload (the MQTT discovery "delete" signal) to any topic whose
+// unique_id is not in knownSensorNames.
+func (c *Client) PruneStaleDiscovery(knownSensorNames []string) {
+	valid := make(map[string]bool, len(knownSensorNames))
+	for _, name := range knownSensorNames {
+		valid["stri_bocas_"+name] = true
+	}
+
+	wildcard := c.topicPrefix + "/sensor/stri_bocas_+/config"
+
+	// Protect foundUIDs with a mutex: Paho dispatches message callbacks in its
+	// own goroutines, so concurrent writes are possible.
+	var mu sync.Mutex
+	foundUIDs := make(map[string]string) // unique_id → config topic
+
+	handler := func(_ mqtt.Client, msg mqtt.Message) {
+		if len(msg.Payload()) == 0 {
+			return // already tombstoned
+		}
+		var cfg struct {
+			UniqueID string `json:"unique_id"`
+		}
+		if err := json.Unmarshal(msg.Payload(), &cfg); err == nil && cfg.UniqueID != "" {
+			mu.Lock()
+			foundUIDs[cfg.UniqueID] = msg.Topic()
+			mu.Unlock()
+		}
+	}
+
+	log.Printf("[mqtt] prune: subscribing to %s", wildcard)
+	if token := c.inner.Subscribe(wildcard, 0, handler); token.Wait() && token.Error() != nil {
+		log.Printf("[mqtt] prune: subscribe error: %v", token.Error())
+		return
+	}
+	// Retained messages are delivered immediately on subscribe; 2 s is ample
+	// even on slow brokers. We wait fully before reading foundUIDs.
+	time.Sleep(2 * time.Second)
+	c.inner.Unsubscribe(wildcard)
+	// Brief pause so any in-flight handler goroutines finish writing to foundUIDs.
+	time.Sleep(100 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	log.Printf("[mqtt] prune: found %d retained discovery config(s)", len(foundUIDs))
+	for uid, topic := range foundUIDs {
+		if valid[uid] {
+			log.Printf("[mqtt] prune: keeping %s", uid)
+			continue
+		}
+		log.Printf("[mqtt] prune: deleting stale %s (topic: %s)", uid, topic)
+		if token := c.inner.Publish(topic, 0, true, []byte{}); token.Wait() && token.Error() != nil {
+			log.Printf("[mqtt] prune: failed to delete %s: %v", topic, token.Error())
+		}
+	}
 }
 
 // Disconnect cleanly closes the MQTT connection.

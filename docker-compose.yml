@@ -1,0 +1,14 @@
+services:
+  stri-data-bridge:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./debug-images:/debug:z
+    environment:
+      MQTT_BROKER: ${MQTT_BROKER}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-stri-data-bridge}
+      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-homeassistant}
+      POLL_INTERVAL: ${POLL_INTERVAL:-15m}
+      STRI_DEBUG_IMAGES: ${STRI_DEBUG_IMAGES:-}

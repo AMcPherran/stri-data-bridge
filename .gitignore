@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# OCR debug images (generated when STRI_DEBUG_IMAGES=1)
+debug-images/
+
 # Editor/IDE
 # .idea/
 # .vscode/
