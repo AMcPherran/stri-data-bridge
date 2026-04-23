@@ -30,6 +30,9 @@ go.work.sum
 # OCR debug images (generated when STRI_DEBUG_IMAGES=1)
 debug-images/
 
+# Claude Code IDE settings
+.claude/
+
 # Editor/IDE
 # .idea/
 # .vscode/
