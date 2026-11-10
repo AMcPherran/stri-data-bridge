@@ -14,9 +14,9 @@ Go service that scrapes the Smithsonian Tropical Research Institute (STRI) physi
 
 `docker compose up -d` with `MQTT_BROKER` (+ optional creds, `POLL_INTERVAL`, default 15m) in `.env`. Local `go build` needs `libtesseract-dev` + `libleptonica-dev`.
 
-## Deploy — mid-migration, read before touching
+## Deploy: merging to `main` ships
 
-Production runs as a Dokploy app on the dokploy LXC (10.10.1.55 on cube), NOT from this repo's compose file. There is no CI here; the image is built/pushed via Dokploy. Its image is the LAST one still on the old Harbor registry (`reg.awm.dev`) — the Harbor to GitLab (`registry.pa.awm.dev`) migration is in flight and Harbor is being decommissioned. Any deploy work should move this image to the GitLab registry, never add new `reg.awm.dev` references.
+`.github/workflows/image.yml` builds `ghcr.io/amcpherran/stri-data-bridge:sha-<short>` on each push to `main`, and production deploys the newest within minutes, so every merge reaches the live HA entities. The compose file is for local dev only. Where production runs and how it gets its credentials are in the wiki page under Conventions, not here: this repo is public.
 
 ## Warnings (live system)
 
