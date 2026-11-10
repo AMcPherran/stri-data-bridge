@@ -17,6 +17,7 @@ var Device = map[string]any{
 type SensorMeta struct {
 	DeviceClass string // HA device_class value ("temperature", "humidity", etc.) or "" for none
 	Unit        string // unit_of_measurement shown in HA; may be overridden by live OCR unit
+	StateClass  string // HA state_class; empty means "measurement"
 }
 
 // classRules maps substring patterns (matched against sensor name) to metadata.
@@ -25,26 +26,26 @@ var classRules = []struct {
 	substr string
 	meta   SensorMeta
 }{
-	{"temperature", SensorMeta{"temperature", "°C"}},
-	{"humidity", SensorMeta{"humidity", "%"}},
-	{"pressure", SensorMeta{"pressure", "hPa"}},
-	{"rainfall", SensorMeta{"precipitation", "mm"}},
-	{"rain", SensorMeta{"precipitation", "mm"}},
-	{"wind_speed", SensorMeta{"wind_speed", "km/h"}},
-	{"wind_direction", SensorMeta{"wind_direction", "°"}},
-	{"solar_radiation", SensorMeta{"irradiance", "W/m²"}},
-	{"dissolved_oxygen", SensorMeta{"", "mg/L"}},
-	{"sea_level", SensorMeta{"distance", "m"}},
-	{"tide", SensorMeta{"distance", "m"}},
-	{"salinity", SensorMeta{"", "PSU"}},
-	{"specific_conductance", SensorMeta{"", "µS/cm"}},
-	{"conductivity", SensorMeta{"", "µS/cm"}},
-	{"turbidity", SensorMeta{"", "NTU"}},
-	{"chlorophyll", SensorMeta{"", "µg/L"}},
-	{"phycocyanin", SensorMeta{"", "RFU"}},
-	{"battery", SensorMeta{"voltage", "V"}},
-	{"orp", SensorMeta{"voltage", "mV"}},
-	{"ph", SensorMeta{"ph", ""}},
+	{"temperature", SensorMeta{DeviceClass: "temperature", Unit: "°C"}},
+	{"humidity", SensorMeta{DeviceClass: "humidity", Unit: "%"}},
+	{"pressure", SensorMeta{DeviceClass: "pressure", Unit: "hPa"}},
+	{"rainfall", SensorMeta{DeviceClass: "precipitation", Unit: "mm"}},
+	{"rain", SensorMeta{DeviceClass: "precipitation", Unit: "mm"}},
+	{"wind_speed", SensorMeta{DeviceClass: "wind_speed", Unit: "km/h"}},
+	{"wind_direction", SensorMeta{DeviceClass: "wind_direction", Unit: "°", StateClass: "measurement_angle"}},
+	{"solar_radiation", SensorMeta{DeviceClass: "irradiance", Unit: "W/m²"}},
+	{"dissolved_oxygen", SensorMeta{Unit: "mg/L"}},
+	{"sea_level", SensorMeta{DeviceClass: "distance", Unit: "m"}},
+	{"tide", SensorMeta{DeviceClass: "distance", Unit: "m"}},
+	{"salinity", SensorMeta{Unit: "PSU"}},
+	{"specific_conductance", SensorMeta{Unit: "µS/cm"}},
+	{"conductivity", SensorMeta{Unit: "µS/cm"}},
+	{"turbidity", SensorMeta{Unit: "NTU"}},
+	{"chlorophyll", SensorMeta{Unit: "µg/L"}},
+	{"phycocyanin", SensorMeta{Unit: "RFU"}},
+	{"battery", SensorMeta{DeviceClass: "voltage", Unit: "V"}},
+	{"orp", SensorMeta{DeviceClass: "voltage", Unit: "mV"}},
+	{"ph", SensorMeta{DeviceClass: "ph"}},
 }
 
 // MetaFor returns the best SensorMeta for a snake_case sensor name.
@@ -77,9 +78,17 @@ type DiscoveryConfig struct {
 func BuildDiscovery(sensorName, topicPrefix, unitOverride string) (string, []byte, error) {
 	meta := MetaFor(sensorName)
 
+	// When a known device_class is set, HA validates the unit against it.
+	// OCR sometimes garbles the live unit (e.g. "W/m²" → "wim2"), which would
+	// fail validation, so trust the rule's unit and ignore the override.
 	unit := meta.Unit
-	if unitOverride != "" {
+	if meta.DeviceClass == "" && unitOverride != "" {
 		unit = unitOverride
+	}
+
+	stateClass := meta.StateClass
+	if stateClass == "" {
+		stateClass = "measurement"
 	}
 
 	uniqueID := "stri_bocas_" + sensorName
@@ -93,7 +102,7 @@ func BuildDiscovery(sensorName, topicPrefix, unitOverride string) (string, []byt
 		ValueTemplate:     "{{ value_json.value }}",
 		UnitOfMeasurement: unit,
 		DeviceClass:       meta.DeviceClass,
-		StateClass:        "measurement",
+		StateClass:        stateClass,
 		Device:            Device,
 	}
 
